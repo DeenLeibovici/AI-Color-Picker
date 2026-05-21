@@ -38,17 +38,41 @@
   filter: drop-shadow(0 0 2em #24c8db);
 }
 
-.circle {
+#palette {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 24px 0;
+  flex-wrap: wrap;
+}
 
-      width: 150px;
+.swatch {
+  width: 100px;
+  height: 100px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+  position: relative;
+}
 
-      height: 150px;
+.swatch:hover {
+  transform: scale(1.08);
+}
 
-      background-color: #f6f6f6;
-
-      border-radius: 50%;
-
-    }
+.swatch-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  pointer-events: none;
+}
 
 a {
   font-weight: 500;

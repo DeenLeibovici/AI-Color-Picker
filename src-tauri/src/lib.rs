@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ChatMessage {
@@ -19,45 +19,54 @@ struct LMStudioResponse {
 }
 
 #[derive(Deserialize)]
-struct ColorPayload {
-    hex: String,
+struct PalettePayload {
+    colors: Vec<String>,
 }
 
 #[tauri::command]
-async fn fetch_color_from_llm(prompt: String) -> Result<String, String> {
+async fn fetch_palette_from_llm(prompt: String) -> Result<Vec<String>, String> {
     let client = Client::new();
-    
+
+    let model = std::env::var("LMSTUDIO_MODEL")
+        .unwrap_or_else(|_| "qwen/qwen3.6-27b".to_string());
+
     let payload = serde_json::json!({
-        "model": "qwen/qwen3.6-27b", 
+        "model": model,
         "messages": [
             {
                 "role": "system",
-                "content": "You are a color assistant. Return a valid Hex color code matching the schema."
+                "content": "You are a color palette assistant. Return a cohesive palette of 5 hex color codes matching the description. The colors should work well together (e.g., primary, secondary, accent, light, dark variants)."
             },
             {
                 "role": "user",
-                "content": format!("Hex code for: {}", prompt)
+                "content": format!("Generate a color palette for: {}", prompt)
             }
         ],
-        "temperature": 0.2,
+        "temperature": 0.7,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
-                "name": "color_payload",
+                "name": "palette_payload",
                 "strict": true,
                 "schema": {
                     "type": "object",
                     "properties": {
-                        "hex": { "type": "string" }
+                        "colors": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
                     },
-                    "required": ["hex"],
+                    "required": ["colors"],
                     "additionalProperties": false
                 }
             }
         }
     });
 
-    let raw_response = client.post("http://localhost:1234/v1/chat/completions")
+    let api_url = std::env::var("LMSTUDIO_API_URL")
+        .unwrap_or_else(|_| "http://localhost:1234/v1/chat/completions".to_string());
+
+    let raw_response = client.post(&api_url)
         .json(&payload)
         .send()
         .await
@@ -72,7 +81,6 @@ async fn fetch_color_from_llm(prompt: String) -> Result<String, String> {
     let message = &parsed_res.choices.first()
         .ok_or("No choices returned from model")?.message;
 
-    // 2. CLEVER FALLBACK: If 'content' is empty, look inside 'reasoning_content'
     let mut target_json = message.content.trim();
     if target_json.is_empty() {
         if let Some(ref reasoning) = message.reasoning_content {
@@ -84,18 +92,17 @@ async fn fetch_color_from_llm(prompt: String) -> Result<String, String> {
         return Err("Model returned an entirely empty response object.".to_string());
     }
 
-    // 3. Final verification parse
-    let color_data: ColorPayload = serde_json::from_str(target_json)
+    let palette_data: PalettePayload = serde_json::from_str(target_json)
         .map_err(|_| format!("Failed to extract schema from text block: '{}'", target_json))?;
 
-    Ok(color_data.hex)
+    Ok(palette_data.colors)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![fetch_color_from_llm])
+        .invoke_handler(tauri::generate_handler![fetch_palette_from_llm])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
